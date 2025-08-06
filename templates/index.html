@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>T-검정 통계 웹앱</title>
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;700&display=swap" rel="stylesheet">
   <style>
@@ -69,6 +70,78 @@
         padding: 12px;
       }
     }
+
+    /* Modal Styles */
+    .modal {
+        display: none; /* Hidden by default */
+        position: fixed; /* Stay in place */
+        z-index: 1; /* Sit on top */
+        left: 0;
+        top: 0;
+        width: 100%; /* Full width */
+        height: 100%; /* Full height */
+        overflow: auto; /* Enable scroll if needed */
+        background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+        justify-content: center;
+        align-items: center;
+    }
+
+    .modal-content {
+        background-color: #fefefe;
+        margin: auto;
+        padding: 20px;
+        border: 1px solid #888;
+        width: 80%;
+        max-width: 600px;
+        border-radius: 10px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        position: relative;
+    }
+
+    .close-button {
+        color: #aaa;
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+        position: absolute;
+        top: 10px;
+        right: 20px;
+        cursor: pointer;
+    }
+
+    .close-button:hover,
+    .close-button:focus {
+        color: black;
+        text-decoration: none;
+        cursor: pointer;
+    }
+
+    .modal-title {
+        color: #2563eb;
+        margin-bottom: 15px;
+        text-align: center;
+    }
+
+    .modal-pre {
+        background-color: #e2e8f0;
+        padding: 15px;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        white-space: pre-wrap; /* Ensures text wraps */
+        word-break: break-all; /* Breaks long words */
+    }
+    .plot-container {
+        text-align: center;
+        margin-top: 20px;
+        margin-bottom: 20px;
+    }
+    .plot-container img {
+        max-width: 100%;
+        height: auto;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
   </style>
 </head>
 <body>
@@ -78,8 +151,8 @@
     <nav style="margin-bottom:32px; text-align:center;">
       <span style="font-weight:700; color:#2563eb; font-size:1.1rem;">통계분석</span>
       <span style="margin-left:16px; color:#64748b;">|</span>
-      <span style="margin-left:16px; color:#2563eb; cursor:pointer; font-weight:500;">t-test</span>
-      <span style="margin-left:16px; color:#2563eb; cursor:pointer; font-weight:500;">ANOVA</span>
+      <span style="margin-left:16px; color:#2563eb; font-weight:500;">t-test</span>
+      <span style="margin-left:16px; color:#2563eb; font-weight:500;">ANOVA</span>
     </nav>
     <!-- 1. 파일업로드 -->
     <div class="section">
@@ -89,97 +162,207 @@
         <button type="submit">업로드</button>
       </form>
       <button type="button" onclick="location.href='/'" style="margin-left:10px; background:#e0e7ef; color:#2563eb; border:none; padding:10px 18px; border-radius:6px; font-size:1rem; cursor:pointer;">분석 초기화</button>
+      {% if filename %}
+        <p style="margin-top: 10px; color:#334155;">현재 업로드된 파일: <strong>{{ filename }}</strong></p>
+      {% endif %}
     </div>
     <!-- 2. 통계분석(분석방법 선택) -->
     <div class="section">
       <div class="section-title">2. 통계 분석 방법 선택</div>
-      <form method="post" enctype="multipart/form-data" style="margin-bottom:0; display:flex; align-items:center; gap:12px;">
+      {% if filename %}
+      <form id="analysisForm" method="post" action="{{ url_for('show_analysis_options') }}" style="margin-bottom:0; display:flex; align-items:center; gap:12px;">
         <label for="analysis_method" style="font-weight:500;">분석 방법:</label>
         <select id="analysis_method" name="analysis_method" style="padding:6px 12px; border-radius:6px; border:1px solid #cbd5e1;">
-          <option value="paired">Paired t-test</option>
-          <option value="independent" selected>Independent t-test</option>
-          <option value="anova">ANOVA</option>
+          <option value="paired" {% if selected_method == 'paired' %}selected{% endif %}>Paired t-test</option>
+          <option value="independent" {% if selected_method == 'independent' %}selected{% endif %}>Independent t-test</option>
+          <option value="anova" {% if selected_method == 'anova' %}selected{% endif %}>ANOVA</option>
         </select>
+        <button type="submit" style="background:#2563eb; color:#fff; border:none; padding:10px 24px; border-radius:6px; font-size:1rem; cursor:pointer;">분석 실행</button>
         <button type="button" onclick="showHelp()" style="margin-left:8px; font-size:0.85rem; padding:4px 10px; border-radius:5px; border:none; background:#e0e7ef; color:#2563eb; cursor:pointer;">HELP</button>
       </form>
-      <script>
-        function showHelp() {
-          alert(
-            '데이터 입력 예시:\n' +
-            '\n[Independent t-test] 또는 [Paired t-test]:\n' +
-            '- 엑셀 파일(.xlsx) 또는 CSV 파일의 앞 2개 컬럼을 사용합니다.\n' +
-            '- 각 컬럼은 한 그룹의 데이터를 의미합니다.\n' +
-            '- 예시)\n' +
-            '  | 그룹1 | 그룹2 |\n' +
-            '  |-------|-------|\n' +
-            '  |  5.1  |  4.9  |\n' +
-            '  |  5.7  |  5.0  |\n' +
-            '\n[ANOVA]:\n' +
-            '- 3개 이상의 그룹(컬럼)이 필요합니다. 각 컬럼이 하나의 그룹입니다.\n' +
-            '- 예시)\n' +
-            '  | 그룹1 | 그룹2 | 그룹3 |\n' +
-            '  |-------|-------|-------|\n' +
-            '  |  5.1  |  4.9  |  6.2  |\n' +
-            '  |  5.7  |  5.0  |  6.1  |'
-          );
-        }
-      </script>
+      {% else %}
+        <span style="color:#94a3b8;">파일을 먼저 업로드해주세요.</span>
+      {% endif %}
     </div>
+
+    <!-- 2.5. 데이터 시각화 -->
+    <div class="section">
+        <div class="section-title">2.5. 데이터 분포 시각화</div>
+        {% if plot_url %}
+            <div class="plot-container">
+                <img src="data:image/png;base64,{{ plot_url }}" alt="Data Distribution Plot">
+            </div>
+        {% else %}
+            <span style="color:#94a3b8;">데이터 분포 시각화가 여기에 표시됩니다.</span>
+        {% endif %}
+    </div>
+
+    <!-- 2.7. 정규성 및 등분산성 검정 결과 -->
+    <div class="section">
+        <div class="section-title">2.7. 정규성 및 등분산성 검정 결과</div>
+        <div class="result">
+            {% if result and result.normality_results %}
+                <h4 style="color:#1e293b; margin-bottom:10px;">정규성 검정 (Shapiro-Wilk)</h4>
+                <table style="width:100%; border-collapse:collapse; margin-bottom:18px;">
+                    <thead>
+                        <tr style="background:#e0e7ef;">
+                            <th style="padding:8px; border:1px solid #cbd5e1;">그룹</th>
+                            <th style="padding:8px; border:1px solid #cbd5e1;">통계량</th>
+                            <th style="padding:8px; border:1px solid #cbd5e1;">p-값</th>
+                            <th style="padding:8px; border:1px solid #cbd5e1;">정규성 만족 여부 (p > 0.05)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for group_name, res in result.normality_results.items() %}
+                        <tr>
+                            <td style="padding:8px; border:1px solid #cbd5e1;">{{ group_name }}</td>
+                            <td style="padding:8px; border:1px solid #cbd5e1;">{{ res.statistic }}</td>
+                            <td style="padding:8px; border:1px solid #cbd5e1;">{{ res.p_value }}</td>
+                            <td style="padding:8px; border:1px solid #cbd5e1;">{{ "만족" if res.normal else "불만족" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+
+            {% if result and result.homoscedasticity_result %}
+                <h4 style="color:#1e293b; margin-bottom:10px;">등분산성 검정 (Levene)</h4>
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:#e0e7ef;">
+                            <th style="padding:8px; border:1px solid #cbd5e1;">통계량</th>
+                            <th style="padding:8px; border:1px solid #cbd5e1;">p-값</th>
+                            <th style="padding:8px; border:1px solid #cbd5e1;">등분산성 만족 여부 (p > 0.05)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.homoscedasticity_result.statistic }}</td>
+                            <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.homoscedasticity_result.p_value }}</td>
+                            <td style="padding:8px; border:1px solid #cbd5e1;">{{ "만족" if result.homoscedasticity_result.equal_variance else "불만족" }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            {% elif result and (result.type == 'paired_t_test' or result.type == 'independent_t_test' or result.type == 'anova') %}
+                <span style="color:#94a3b8;">등분산성 검정은 독립표본 t-test와 ANOVA에만 해당됩니다.</span>
+            {% else %}
+                <span style="color:#94a3b8;">정규성 및 등분산성 검정 결과가 여기에 표시됩니다.</span>
+            {% endif %}
+        </div>
+    </div>
+
     <!-- 3. 통계결과 -->
     <div class="section">
       <div class="section-title">3. 통계 결과</div>
       <div class="result">
         {% if result %}
-          <table style="width:100%; border-collapse:collapse; margin-bottom:18px;">
-            <thead>
-              <tr style="background:#e0e7ef;">
-                <th style="padding:8px; border:1px solid #cbd5e1;">항목</th>
-                <th style="padding:8px; border:1px solid #cbd5e1;">{{ result.column1 }}</th>
-                <th style="padding:8px; border:1px solid #cbd5e1;">{{ result.column2 }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style="padding:8px; border:1px solid #cbd5e1;">평균</td>
-                <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.mean1 }}</td>
-                <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.mean2 }}</td>
-              </tr>
-              <tr>
-                <td style="padding:8px; border:1px solid #cbd5e1;">표준편차</td>
-                <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.std1 }}</td>
-                <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.std2 }}</td>
-              </tr>
-              <tr>
-                <td style="padding:8px; border:1px solid #cbd5e1;">분산</td>
-                <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.var1 }}</td>
-                <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.var2 }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <table style="width:100%; border-collapse:collapse;">
-            <tbody>
-              <tr>
-                <td style="padding:8px; border:1px solid #cbd5e1; width:30%;">t 값</td>
-                <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.t_statistic }}</td>
-              </tr>
-              <tr>
-                <td style="padding:8px; border:1px solid #cbd5e1;">자유도(df)</td>
-                <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.df }}</td>
-              </tr>
-              <tr>
-                <td style="padding:8px; border:1px solid #cbd5e1;">p-value</td>
-                <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.p_value }}</td>
-              </tr>
-              <tr>
-                <td style="padding:8px; border:1px solid #cbd5e1;">유의수준(α)</td>
-                <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.alpha }}</td>
-              </tr>
-              <tr>
-                <td style="padding:8px; border:1px solid #cbd5e1;">Effect size (Cohen's d)</td>
-                <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.cohen_d }}</td>
-              </tr>
-            </tbody>
-          </table>
+          {% if result.type == 'independent_t_test' or result.type == 'paired_t_test' %}
+            <table style="width:100%; border-collapse:collapse; margin-bottom:18px;">
+              <thead>
+                <tr style="background:#e0e7ef;">
+                  <th style="padding:8px; border:1px solid #cbd5e1;">항목</th>
+                  <th style="padding:8px; border:1px solid #cbd5e1;">{{ result.column1 }}</th>
+                  <th style="padding:8px; border:1px solid #cbd5e1;">{{ result.column2 }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">평균</td>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.mean1 }}</td>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.mean2 }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">표준편차</td>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.std1 }}</td>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.std2 }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">분산</td>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.var1 }}</td>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.var2 }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <table style="width:100%; border-collapse:collapse;">
+              <tbody>
+                <tr>
+                  <td style="padding:8px; border:1px solid #cbd5e1; width:30%;">t 값</td>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.t_statistic }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">자유도(df)</td>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.df }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">p-value</td>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.p_value }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">유의수준(α)</td>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.alpha }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">Effect size (Cohen's d)</td>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.cohen_d }}</td>
+                </tr>
+              </tbody>
+            </table>
+          {% elif result.type == 'anova' %}
+            <table style="width:100%; border-collapse:collapse; margin-bottom:18px;">
+              <thead>
+                <tr style="background:#e0e7ef;">
+                  <th style="padding:8px; border:1px solid #cbd5e1;">항목</th>
+                  {% for col_name in result.group_stats.keys() %}
+                    <th style="padding:8px; border:1px solid #cbd5e1;">{{ col_name }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">평균</td>
+                  {% for col_name in result.group_stats.keys() %}
+                    <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.group_stats[col_name].mean }}</td>
+                  {% endfor %}
+                </tr>
+                <tr>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">표준편차</td>
+                  {% for col_name in result.group_stats.keys() %}
+                    <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.group_stats[col_name].std }}</td>
+                  {% endfor %}
+                </tr>
+                <tr>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">분산</td>
+                  {% for col_name in result.group_stats.keys() %}
+                    <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.group_stats[col_name].var }}</td>
+                  {% endfor %}
+                </tr>
+              </tbody>
+            </table>
+            <table style="width:100%; border-collapse:collapse;">
+              <tbody>
+                <tr>
+                  <td style="padding:8px; border:1px solid #cbd5e1; width:30%;">F 값</td>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.f_statistic }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">자유도 (그룹 간)</td>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.df_between }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">자유도 (그룹 내)</td>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.df_within }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">p-value</td>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.p_value }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">유의수준(α)</td>
+                  <td style="padding:8px; border:1px solid #cbd5e1;">{{ result.alpha }}</td>
+                </tr>
+              </tbody>
+            </table>
+          {% endif %}
         {% else %}
           <span style="color:#94a3b8;">분석 결과가 여기에 표시됩니다.</span>
         {% endif %}
@@ -197,5 +380,50 @@
       </div>
     </div>
   </div>
+
+  <!-- HELP 모달 -->
+  <div id="helpModal" class="modal">
+      <div class="modal-content">
+          <span class="close-button" onclick="closeModal()">&times;</span>
+          <h3 class="modal-title">데이터 입력 예시</h3>
+          <pre class="modal-pre">
+[Independent t-test] 또는 [Paired t-test]:
+- 엑셀 파일(.xlsx) 또는 CSV 파일의 앞 2개 컬럼을 사용합니다.
+- 각 컬럼은 한 그룹의 데이터를 의미합니다.
+- 예시)
+  | 그룹1 | 그룹2 |
+  |-------|-------|
+  |  5.1  |  4.9  |
+  |  5.7  |  5.0  |
+
+[ANOVA]:
+- 3개 이상의 그룹(컬럼)이 필요합니다. 각 컬럼이 하나의 그룹입니다.
+- 예시)
+  | 그룹1 | 그룹2 | 그룹3 |
+  |-------|-------|-------|
+  |  5.1  |  4.9  |  6.2  |
+  |  5.7  |  5.0  |  6.1  |
+          </pre>
+      </div>
+  </div>
+
+  <script>
+    function showHelp() {
+      document.getElementById('helpModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('helpModal').style.display = 'none';
+    }
+
+    // 모달 외부 클릭 시 닫기
+    window.onclick = function(event) {
+        const modal = document.getElementById('helpModal');
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    }
+  </script>
 </body>
 </html>
+
